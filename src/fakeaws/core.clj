@@ -12,12 +12,12 @@
 
 
 (def aws-credentials
-  {:access-key (str (java.util.UUID/randomUUID))
-   :secret-key (str (java.util.UUID/randomUUID))})
+  {:access-key "open"
+   :secret-key "sesame"})
 
 (defn start-sqs
   []
-  (let [sqs-port  8001
+  (let [sqs-port  8001 ;; sadly, sqsmock does not allow the port number to be changed
         account   1
         sqs-creds (assoc aws-credentials :endpoint (format "http://localhost:%s" sqs-port))]
     (println "====> SQS mock credentials: " sqs-creds)
