@@ -1,6 +1,7 @@
 (ns fakeaws.core
   (:require [amazonica.aws.sqs :as sqs]
-            [clojure.string :refer [upper-case]])
+            [clojure.string :refer [join upper-case]]
+            [clojure.tools.cli :refer [parse-opts]])
   (:import [io.findify.sqsmock SQSService]
            [org.gaul.s3proxy S3Proxy]
            [org.jclouds.blobstore BlobStoreContext]
@@ -11,29 +12,34 @@
   (:gen-class))
 
 
+(def sqs-port 8001)
+
+(def account  1)
+
 (def aws-credentials
   {:access-key "open"
-   :secret-key "sesame"})
+   :secret-key "sesame"
+   :endpoint   (format "http://localhost:%s" sqs-port)})
+
+(def sqs-queues nil)
 
 (defn start-sqs
   []
-  (let [sqs-port  8001 ;; sadly, sqsmock does not allow the port number to be changed
-        account   1
-        sqs-creds (assoc aws-credentials :endpoint (format "http://localhost:%s" sqs-port))]
-    (println "====> SQS mock credentials: " sqs-creds)
-    (let [sqs-service (.start (SQSService. sqs-port account))
-          queues      {:stockpile.notify (:queue-url (sqs/create-queue sqs-creds :queue-name "stockpile.notify"))
-                       :stockpile.fail   (:queue-url (sqs/create-queue sqs-creds :queue-name "stockpile.fail"))
-                       :gottfried.notify (:queue-url (sqs/create-queue sqs-creds :queue-name "gottfried.notify"))
-                       :gottfried.fail   (:queue-url (sqs/create-queue sqs-creds :queue-name "gottfried.fail"))
-                       :us_cfr.notify    (:queue-url (sqs/create-queue sqs-creds :queue-name "us_cfr.notify"))
-                       :us_cfr.fail      (:queue-url (sqs/create-queue sqs-creds :queue-name "us_cfr.fail"))
-                       :annotator.notify (:queue-url (sqs/create-queue sqs-creds :queue-name "annotator.notify"))}
-          queues-vec (-> queues vec)]
-      (dotimes [i (count queues-vec)]
-        (println (format "\t- %s: [%s]"
-                         (-> (get queues-vec i) first name upper-case)
-                         (second (get queues-vec i))))))))
+  (println "====> SQS mock credentials: " aws-credentials)
+  (let [sqs-service (.start (SQSService. sqs-port account))
+        queues      {:stockpile.notify (:queue-url (sqs/create-queue aws-credentials :queue-name "stockpile.notify"))
+                     :stockpile.fail   (:queue-url (sqs/create-queue aws-credentials :queue-name "stockpile.fail"))
+                     :gottfried.notify (:queue-url (sqs/create-queue aws-credentials :queue-name "gottfried.notify"))
+                     :gottfried.fail   (:queue-url (sqs/create-queue aws-credentials :queue-name "gottfried.fail"))
+                     :us_cfr.notify    (:queue-url (sqs/create-queue aws-credentials :queue-name "us_cfr.notify"))
+                     :us_cfr.fail      (:queue-url (sqs/create-queue aws-credentials :queue-name "us_cfr.fail"))
+                     :annotator.notify (:queue-url (sqs/create-queue aws-credentials :queue-name "annotator.notify"))}
+        queues-vec (-> queues vec)]
+    (alter-var-root #'sqs-queues (constantly queues))
+    (dotimes [i (count queues-vec)]
+      (println (format "\t- %s: [%s]"
+                       (-> (get queues-vec i) first name upper-case)
+                       (second (get queues-vec i)))))))
 
 (defn start-s3
   []
@@ -55,9 +61,43 @@
     (while (not (-> s3-proxy .getState (.equals AbstractLifeCycle/STARTED)))
       (Thread/sleep 1))))
 
+(def cli-options
+  [["-d" "--dequeue NUM_MSGS"
+    :parse-fn #(Integer/parseInt %)
+    :validate [#(< 0 %) "Must be a number greater than 0"]]
+   ["-m" "--send-msg MSG_STR"]
+   ["-q" "--queue QUEUE"]
+   ["-s" "--start-aws"]])
+
 (defn -main
   [& args]
-  (let [sqs-service (start-sqs)
-        s3-service  (start-s3)]
-    (while true
-      (Thread/sleep 10000))))
+  (let [{:keys [options] :as parsed} (parse-opts args cli-options)]
+    (cond
+      (and (options :dequeue) (options :queue))
+      (doall (map #(println (:body %))
+                  (:messages (sqs/receive-message
+                              aws-credentials
+                              :queue-url (format "%s/%s/%s"
+                                                 (:endpoint aws-credentials)
+                                                 account
+                                                 (options :queue))
+                              :wait-time-seconds 10
+                              :max-number-of-messages (options :dequeue)))))
+
+       (and (options :send-msg) (options :queue))
+       (do
+         (sqs/send-message aws-credentials (format "%s/%s/%s"
+                                                   (:endpoint aws-credentials)
+                                                   account
+                                                   (options :queue))
+                           (options :send-msg))
+         (println (str "Sent message to " (options :queue) "!")))
+
+       (options :start-aws)
+       (let [sqs-service (start-sqs)
+             s3-service  (start-s3)]
+         (while true
+           (Thread/sleep 10000)))
+
+       :else
+       (println parsed))))

@@ -7,7 +7,8 @@
   :dependencies [[amazonica "0.3.152"]
                  [org.clojure/clojure "1.10.0"]
                  [org.gaul/s3proxy "1.7.0"]
-                 [io.findify/sqsmock_2.11 "0.3.2"]]
+                 [io.findify/sqsmock_2.11 "0.3.2"]
+                 [org.clojure/tools.cli "1.0.194"]]
   :main ^:skip-aot fakeaws.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})
