@@ -26,6 +26,14 @@
 
 (def sqs-queues nil)
 
+(defn- shutdown-hook
+  [f]
+  (.addShutdownHook (Runtime/getRuntime)
+                    (Thread. (fn [] (try
+                                      (f)
+                                      (catch Exception ex
+                                        nil))))))
+
 (defn start-sqs
   []
   (println "====> SQS mock credentials: " aws-credentials)
@@ -67,7 +75,9 @@
   []
   (println "====> Redis mock credentials: " (format "redis://username@localhost:%s/" redis-port))
   (let [server (RedisServer. (int redis-port))]
-    (.start server)))
+    (.start server)
+    (shutdown-hook #(.stop server))
+    server))
 
 (def cli-options
   [["-d" "--dequeue NUM_MSGS"
