@@ -8,7 +8,7 @@
                  [org.clojure/clojure "1.10.0"]
                  [org.gaul/s3proxy "1.7.0"]
                  [io.findify/sqsmock_2.11 "0.3.2"]
-                 [com.github.fppt/jedis-mock "0.1.16"]
+                 [com.github.kstyrc/embedded-redis "0.6"]
                  [org.clojure/tools.cli "1.0.194"]]
   :main ^:skip-aot fakeaws.core
   :target-path "target/%s"

@@ -4,7 +4,7 @@
             [clojure.tools.cli :refer [parse-opts]])
   (:import [io.findify.sqsmock SQSService]
            [org.gaul.s3proxy S3Proxy]
-           [com.github.fppt.jedismock RedisServer]
+           [redis.embedded RedisServer]
            [org.jclouds.blobstore BlobStoreContext]
            [org.jclouds ContextBuilder]
            [java.util Properties]
@@ -65,8 +65,8 @@
 
 (defn start-redis
   []
-  (println "====> Redis mock credentials: " (format "redis://username:password@localhost:%s/" redis-port))
-  (let [server (RedisServer/newRedisServer redis-port)]
+  (println "====> Redis mock credentials: " (format "redis://username@localhost:%s/" redis-port))
+  (let [server (RedisServer. (int redis-port))]
     (.start server)))
 
 (def cli-options
