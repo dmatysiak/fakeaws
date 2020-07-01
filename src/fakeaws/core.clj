@@ -4,6 +4,7 @@
             [clojure.tools.cli :refer [parse-opts]])
   (:import [io.findify.sqsmock SQSService]
            [org.gaul.s3proxy S3Proxy]
+           [com.github.fppt.jedismock RedisServer]
            [org.jclouds.blobstore BlobStoreContext]
            [org.jclouds ContextBuilder]
            [java.util Properties]
@@ -12,7 +13,9 @@
   (:gen-class))
 
 
-(def sqs-port 8001)
+(def sqs-port 8001) ;; can't be adjusted
+(def s3-port 8002)
+(def redis-port 8003)
 
 (def account  1)
 
@@ -44,7 +47,6 @@
 (defn start-s3
   []
   (let [s3-dir   (str (clojure.java.io/file "/tmp" (str (java.util.UUID/randomUUID))))
-        s3-port  8002
         props    (doto (Properties.)
                    (.setProperty "jclouds.filesystem.basedir" s3-dir))
         context  (-> (ContextBuilder/newBuilder "filesystem")
@@ -60,6 +62,12 @@
     (.start s3-proxy)
     (while (not (-> s3-proxy .getState (.equals AbstractLifeCycle/STARTED)))
       (Thread/sleep 1))))
+
+(defn start-redis
+  []
+  (println "====> Redis mock credentials: " (format "redis://username:password@localhost:%s/" redis-port))
+  (let [server (RedisServer/newRedisServer redis-port)]
+    (.start server)))
 
 (def cli-options
   [["-d" "--dequeue NUM_MSGS"
@@ -94,8 +102,9 @@
          (println (str "Sent message to " (options :queue) "!")))
 
        (options :start-aws)
-       (let [sqs-service (start-sqs)
-             s3-service  (start-s3)]
+       (let [sqs-service   (start-sqs)
+             s3-service    (start-s3)
+             redis-service (start-redis)]
          (while true
            (Thread/sleep 10000)))
 
